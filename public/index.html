@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management System</title>
+    <link rel="stylesheet" href="/public/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="auth-container" id="authContainer">
+        <div class="auth-form active" id="loginForm">
+            <h2>Welcome Back!</h2>
+            <form id="loginFormElement">
+                <input type="text" name="username" placeholder="Enter username" required>
+                <input type="password" name="password" placeholder="••••••••" required>
+                <button type="submit">Login</button>
+            </form>
+            <p>Don't have an account? <a href="#" id="showSignup">Sign Up</a></p>
+        </div>
+
+        <div class="auth-form" id="signupForm">
+            <h2>Get Started</h2>
+            <form id="signupFormElement">
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <select name="role" required>
+                    <option value="">Select Role</option>
+                    <option value="1">Admin</option>
+                    <option value="2">Staff</option>
+                </select>
+                <button type="submit">Create Account</button>
+            </form>
+            <p>Already have an account? <a href="#" id="showLogin">Login</a></p>
+        </div>
+    </div>
+
+    <div class="dashboard" id="dashboard">
+        <nav class="sidebar">
+            <ul>
+                <li class="nav-item active" data-section="analytics">Analytics</li>
+                <li class="nav-item" data-section="products">Products</li>
+                <li class="nav-item" data-section="suppliers">Suppliers</li>
+                <li class="nav-item admin-only" data-section="sales">Sales</li>
+                <li class="nav-item" data-section="relationships">Supplier Relationships</li>
+                <li class="nav-item" id="logoutButton">Logout</li>
+            </ul>
+        </nav>
+        
+        <div class="content">
+            <div id="contentArea">
+                <div class="card">
+                    <h4>Stock Overview</h4>
+                    <div class="chart-container">
+                        <canvas id="stockChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h4>Sales Trends</h4>
+                    <div class="chart-container">
+                        <canvas id="salesChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h4>Supplier Contributions</h4>
+                    <div class="chart-container">
+                        <canvas id="supplierChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/public/js/auth.js"></script>
+    <script src="/public/js/dashboard.js"></script>
+    <script src="/public/js/charts.js"></script>
+</body>
+</html>
