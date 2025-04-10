@@ -61,7 +61,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-const checkRole = (requiredRole) => async (req, res, next) => {
+const checkRole = (allowedRoles) => async (req, res, next) => {
   try {
     const [roles] = await pool.execute(
       `SELECT r.RoleName 
@@ -71,7 +71,7 @@ const checkRole = (requiredRole) => async (req, res, next) => {
       [req.user.userId]
     );
     
-    if (roles[0]?.RoleName !== requiredRole) {
+    if (!allowedRoles.includes(roles[0]?.RoleName)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     next();
@@ -164,7 +164,7 @@ app.post('/api/signup', async (req, res) => {
 
 // Users
 
-app.get('/api/users', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.get('/api/users', authenticateToken, checkRole(['Admin']), async (req, res) => {
   try {
     const [users] = await pool.execute(
       `SELECT u.UserID, u.Username, r.RoleName 
@@ -178,7 +178,7 @@ app.get('/api/users', authenticateToken, checkRole('Admin'), async (req, res) =>
   }
 });
 
-app.post('/api/users', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.post('/api/users', authenticateToken, checkRole(['Admin']), async (req, res) => {
   try {
     const { username, password, roleId } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -208,7 +208,7 @@ app.get('/api/products', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/products', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.post('/api/products', authenticateToken, checkRole(['Admin']), async (req, res) => {
 	try {
 	  const { name, category, price } = req.body;
 	  
@@ -266,7 +266,7 @@ app.get('/api/products/:id', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/products/:id', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.put('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
     try {
       const { name, category, price } = req.body;
       await pool.execute(
@@ -282,7 +282,7 @@ app.put('/api/products/:id', authenticateToken, checkRole('Admin'), async (req, 
     }
 });
 
-app.delete('/api/products/:id', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.delete('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
 	const connection = await pool.getConnection();
 	try {
 	  await connection.beginTransaction();
@@ -333,7 +333,7 @@ app.get('/api/suppliers', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/suppliers', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.post('/api/suppliers', authenticateToken, checkRole(['Admin']), async (req, res) => {
 	try {
 	  const { name, contactInfo } = req.body;
 	  
@@ -391,7 +391,7 @@ app.get('/api/suppliers/:id', authenticateToken, async (req, res) => {
 	}
 });
 
-app.put('/api/suppliers/:id', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.put('/api/suppliers/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
     try {
       const { name, contactInfo } = req.body;
       await pool.execute(
@@ -407,7 +407,7 @@ app.put('/api/suppliers/:id', authenticateToken, checkRole('Admin'), async (req,
     }
 });
 
-app.delete('/api/suppliers/:id', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.delete('/api/suppliers/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
 	const connection = await pool.getConnection();
 	try {
 	  await connection.beginTransaction();
@@ -443,7 +443,7 @@ app.delete('/api/suppliers/:id', authenticateToken, checkRole('Admin'), async (r
 
 // Stock
 
-app.post('/api/stock', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.post('/api/stock', authenticateToken, checkRole(['Admin']), async (req, res) => {
   try {
     const { productId, supplierId, quantity } = req.body;
     
@@ -478,7 +478,7 @@ app.get('/api/sales', async (req, res) => {
 	}
 });
 
-app.post('/api/sales', authenticateToken, async (req, res) => {
+app.post('/api/sales', authenticateToken, checkRole(['Admin', 'Manager']), async (req, res) => {
 	const connection = await pool.getConnection();
 	try {
 	  await connection.beginTransaction();
@@ -672,7 +672,7 @@ app.get('/api/supplier-products', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/supplier-products', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.post('/api/supplier-products', authenticateToken, checkRole(['Admin']), async (req, res) => {
   try {
     const { supplierId, productId } = req.body;
     
@@ -695,7 +695,7 @@ app.post('/api/supplier-products', authenticateToken, checkRole('Admin'), async 
   }
 });
 
-app.delete('/api/supplier-products/:supplierId/:productId', authenticateToken, checkRole('Admin'), async (req, res) => {
+app.delete('/api/supplier-products/:supplierId/:productId', authenticateToken, checkRole(['Admin']), async (req, res) => {
   try {
     await pool.execute(
       'DELETE FROM SupplierProducts WHERE SupplierID = ? AND ProductID = ?',

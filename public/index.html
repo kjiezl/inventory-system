@@ -29,6 +29,8 @@
                     <option value="">Select Role</option>
                     <option value="1">Admin</option>
                     <option value="2">Staff</option>
+                    <option value="3">Manager</option>
+                    <option value="4">Guest</option>
                 </select>
                 <button type="submit">Create Account</button>
             </form>
@@ -39,12 +41,13 @@
     <div class="dashboard" id="dashboard">
         <nav class="sidebar">
             <ul>
-                <li class="nav-item active" data-section="analytics">Analytics</li>
-                <li class="nav-item" data-section="products">Products</li>
-                <li class="nav-item" data-section="suppliers">Suppliers</li>
-                <li class="nav-item admin-only" data-section="sales">Sales</li>
-                <li class="nav-item" data-section="relationships">Supplier Relationships</li>
-                <li class="nav-item" id="logoutButton">Logout</li>
+              <li class="nav-item admin-only manager-only" data-section="analytics">Analytics</li>
+              <li class="nav-item" data-section="products">Products</li>
+              <li class="nav-item admin-only manager-only" data-section="suppliers">Suppliers</li>
+              <li class="nav-item admin-only manager-only" data-section="sales">Sales</li>
+              <li class="nav-item admin-only" data-section="relationships">Relationships</li>
+              <li class="nav-item admin-only" data-section="users">Users</li>
+              <li class="logout-item" id="logoutButton">Logout</li>
             </ul>
         </nav>
         

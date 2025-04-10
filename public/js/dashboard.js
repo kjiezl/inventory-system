@@ -8,14 +8,44 @@ function initializeDashboard() {
 }
 
 function updateUIForRole(roleId) {
-    const isAdmin = roleId === '1';
-    document.querySelectorAll('.admin-only').forEach(el => {
-        el.style.display = isAdmin ? 'block' : 'none';
+    const rolePermissions = {
+      1: { // admin
+        hidden: [],
+        disabled: [],
+        sections: ['analytics', 'products', 'suppliers', 'sales', 'relationships']
+      },
+      2: { // staff
+        hidden: ['.admin-only', '.manager-only'],
+        disabled: ['.delete-control'],
+        sections: ['products', 'sales']
+      },
+      3: { // manager
+        hidden: ['.user-management'],
+        disabled: ['.role-modification'],
+        sections: ['analytics', 'products', 'suppliers', 'sales']
+      },
+      4: { // guest
+        hidden: ['.edit-control', '.delete-control'],
+        disabled: ['.modify-control'],
+        sections: ['products']
+      }
+    };
+  
+    const currentRole = rolePermissions[roleId] || rolePermissions[5];
+    
+    currentRole.hidden.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => el.style.display = 'none');
     });
-    if (roleId === '2') {
-        document.querySelectorAll('.edit-control').forEach(el => el.disabled = true);
-    }
-}
+    
+    currentRole.disabled.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => el.disabled = true);
+    });
+    
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const section = item.dataset.section;
+      item.style.display = currentRole.sections.includes(section) ? 'block' : 'none';
+    });
+  }
 
 function setupNavigation() {
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -51,6 +81,8 @@ function renderSectionContent(section, data) {
         case 'analytics':
             contentArea.innerHTML = renderAnalytics(data);
             initializeAnalyticsCharts(data);
+            break;
+        case 'relationships':
             break;
         default:
             contentArea.innerHTML = '<p>Select a section from the navigation</p>';
@@ -828,6 +860,9 @@ function logout() {
         window.fetchController.abort();
     }
     
+    history.replaceState(null, null, ' ');
+    window.location.hash = '';
+    
     document.getElementById('dashboard').style.display = 'none';
     document.getElementById('authContainer').style.display = 'flex';
 }
@@ -965,17 +1000,34 @@ function setupGlobalEvents() {
 }
 
 function handleRoute() {
+    const roleId = localStorage.getItem('roleId');
     const section = window.location.hash.substring(1);
     const navItem = document.querySelector(`[data-section="${section}"]`);
-    
-    if (section && navItem) {
-        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        navItem.classList.add('active');
-        loadSectionContent(section);
-    } else {
-        document.querySelector('[data-section="analytics"]').classList.add('active');
-        loadSectionContent('analytics');
+
+    const rolePermissions = {
+        1: ['analytics', 'products', 'suppliers', 'sales', 'relationships'],
+        2: ['products', 'sales'],
+        3: ['analytics', 'products', 'suppliers', 'sales'],
+        4: ['products']
+    };
+
+    let defaultSection = 'analytics';
+    switch(roleId) {
+        case '1': defaultSection = 'analytics'; break;
+        case '2': defaultSection = 'sales'; break;
+        case '3': defaultSection = 'analytics'; break;
+        case '4': defaultSection = 'products'; break;
     }
+
+    const permittedSections = rolePermissions[roleId] || [];
+    if (!permittedSections.includes(section) || !navItem) {
+        window.location.hash = defaultSection;
+        return;
+    }
+
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    navItem.classList.add('active');
+    loadSectionContent(section);
 }
 
 function renderSupplierProductLinking(relationships, suppliers, products) {

@@ -30,6 +30,14 @@ body {
     line-height: 1.5;
 }
 
+.admin-only { display: block; }
+.manager-only { display: block; }
+.staff-only { display: block; }
+.auditor-only { display: block; }
+.guest-only { display: block; }
+
+body:not(.admin) .admin-only { display: none; }
+
 button {
   cursor: pointer;
 }
@@ -268,7 +276,8 @@ button {
     height: 100vh;
 }
 
-.nav-item {
+.nav-item,
+.logout-item {
     padding: 1rem;
     margin: 0.5rem 0;
     cursor: pointer;
@@ -278,7 +287,8 @@ button {
     overflow: hidden;
 }
 
-.nav-item::before {
+.nav-item::before,
+.logout-item::before {
     content: '';
     position: absolute;
     left: -100%;
@@ -289,11 +299,13 @@ button {
     transition: var(--transition);
 }
 
-.nav-item:hover {
+.nav-item:hover,
+.logout-item:hover {
     background: rgba(255, 255, 255, 0.05);
 }
 
-.nav-item:hover::before {
+.nav-item:hover::before,
+.logout-item:hover::before {
     left: 0;
 }
 
