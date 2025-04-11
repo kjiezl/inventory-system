@@ -202,10 +202,9 @@ app.get('/api/products', authenticateToken, async (req, res) => {
   try {
     const [products] = await pool.execute(`
       SELECT p.*, 
-        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
+        COALESCE(SUM(st.QuantityAdded), 0) AS currentStock
       FROM Products p
       LEFT JOIN Stock st ON p.ProductID = st.ProductID
-      LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
       GROUP BY p.ProductID
     `);
     res.json(products);
@@ -471,81 +470,38 @@ app.delete('/api/suppliers/:id', authenticateToken, checkRole(['Admin']), async 
 
 // Stock
 
-app.get('/api/products/:id/stock', authenticateToken, async (req, res) => {
+app.get('/api/stock/:productId/:supplierId', authenticateToken, async (req, res) => {
   try {
-    const [data] = await pool.execute(`
-      SELECT 
-        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
-      FROM Products p
-      LEFT JOIN Stock st ON p.ProductID = st.ProductID
-      LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
-      WHERE p.ProductID = ?
-      GROUP BY p.ProductID
-    `, [req.params.id]);
-    
-    res.json({ currentStock: data[0]?.currentStock || 0 });
+    const [data] = await pool.execute(
+      `SELECT SUM(QuantityAdded) AS quantity 
+       FROM Stock 
+       WHERE ProductID = ? AND SupplierID = ?`,
+      [req.params.productId, req.params.supplierId]
+    );
+    res.json({ quantity: data[0].quantity || 0 });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-app.put('/api/products/:id/stock', authenticateToken, checkRole(['Admin']), async (req, res) => {
-  const connection = await pool.getConnection();
+app.put('/api/stock/:productId/:supplierId', authenticateToken, checkRole(['Admin']), async (req, res) => {
   try {
-    await connection.beginTransaction();
-    const { newStock } = req.body;
-
-    const [current] = await connection.execute(
-      `SELECT 
-        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
-       FROM Products p
-       LEFT JOIN Stock st ON p.ProductID = st.ProductID
-       LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
-       WHERE p.ProductID = ?
-       GROUP BY p.ProductID`,
-      [req.params.id]
-    );
-
-    const currentStock = current[0]?.currentStock || 0;
-    const adjustment = newStock - currentStock;
-
-    const [supplier] = await connection.execute(
-      `SELECT SupplierID FROM Suppliers WHERE Name = 'Stock Adjustment' LIMIT 1`
-    );
+    const { quantity } = req.body;
     
-    if (!supplier.length) {
-      throw new Error('Stock Adjustment supplier not found');
-    }
+    await pool.execute(
+      `DELETE FROM Stock 
+       WHERE ProductID = ? AND SupplierID = ?`,
+      [req.params.productId, req.params.supplierId]
+    );
 
-    await connection.execute(
+    await pool.execute(
       `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded)
        VALUES (?, ?, ?)`,
-      [req.params.id, supplier[0].SupplierID, adjustment]
+      [req.params.productId, req.params.supplierId, quantity]
     );
 
-    await connection.commit();
     res.json({ success: true });
-  } catch (error) {
-    await connection.rollback();
-    console.error('Stock Adjustment Error:', error);
-    res.status(500).json({ error: error.message });
-  } finally {
-    connection.release();
-  }
-});
-
-app.post('/api/stock', authenticateToken, checkRole(['Admin']), async (req, res) => {
-  try {
-    const { productId, supplierId, quantity } = req.body;
-    
-    const [result] = await pool.execute(
-      `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded)
-      VALUES (?, ?, ?)`,
-      [productId, supplierId, quantity]
-    );
-    
-    res.status(201).json({ stockId: result.insertId });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -574,30 +530,34 @@ app.post('/api/sales', authenticateToken, checkRole(['Admin', 'Manager', 'Staff'
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const { productId, quantitySold } = req.body;
+    const { productId, supplierId, quantitySold } = req.body;
 
-    const [stock] = await connection.execute(`
-      SELECT 
-        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
-      FROM Products p
-      LEFT JOIN Stock st ON p.ProductID = st.ProductID
-      LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
-      WHERE p.ProductID = ?
-    `, [productId]);
+    const [stock] = await connection.execute(
+      `SELECT SUM(QuantityAdded) AS availableStock 
+       FROM Stock 
+       WHERE ProductID = ? AND SupplierID = ?`,
+      [productId, supplierId]
+    );
 
-    if (stock[0].currentStock < quantitySold) {
+    if (stock[0].availableStock < quantitySold) {
       await connection.rollback();
       return res.status(400).json({ error: 'Insufficient stock' });
     }
 
-    const [product] = await connection.execute(
-      'SELECT Price FROM Products WHERE ProductID = ?',
-      [productId]
+    await connection.execute(
+      `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded)
+       VALUES (?, ?, ?)`,
+      [productId, supplierId, -quantitySold]
     );
     
+    const [product] = await connection.execute(
+      `SELECT Price FROM Products WHERE ProductID = ?`,
+      [productId]
+    );
+
     await connection.execute(
       `INSERT INTO Sales (ProductID, QuantitySold, TotalAmount, SaleDate)
-      VALUES (?, ?, ?, NOW())`,
+       VALUES (?, ?, ?, NOW())`,
       [productId, quantitySold, quantitySold * product[0].Price]
     );
 
@@ -620,9 +580,10 @@ app.get('/api/analytics/stock', authenticateToken, async (req, res) => {
       SELECT 
         p.ProductID,
         p.Name,
-        (COALESCE(
-          (SELECT SUM(QuantityAdded) FROM Stock WHERE ProductID = p.ProductID), 0) - COALESCE((SELECT SUM(QuantitySold) FROM Sales WHERE ProductID = p.ProductID), 0)) AS currentStock
+        COALESCE(SUM(st.QuantityAdded), 0) AS currentStock
       FROM Products p
+      LEFT JOIN Stock st ON p.ProductID = st.ProductID
+      GROUP BY p.ProductID
     `);
     res.json(data);
   } catch (error) {
