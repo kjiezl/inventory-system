@@ -333,6 +333,22 @@ app.delete('/api/products/:id', authenticateToken, checkRole(['Admin']), async (
 	}
 });
 
+app.get('/api/products/:id/suppliers', authenticateToken, async (req, res) => {
+  try {
+    const [suppliers] = await pool.execute(`
+      SELECT s.SupplierID, s.Name 
+      FROM Suppliers s
+      JOIN SupplierProducts sp ON s.SupplierID = sp.SupplierID
+      WHERE sp.ProductID = ?
+    `, [req.params.id]);
+    
+    res.json(suppliers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Supplier
 
 app.get('/api/suppliers', authenticateToken, async (req, res) => {
@@ -454,6 +470,70 @@ app.delete('/api/suppliers/:id', authenticateToken, checkRole(['Admin']), async 
 });
 
 // Stock
+
+app.get('/api/products/:id/stock', authenticateToken, async (req, res) => {
+  try {
+    const [data] = await pool.execute(`
+      SELECT 
+        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
+      FROM Products p
+      LEFT JOIN Stock st ON p.ProductID = st.ProductID
+      LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
+      WHERE p.ProductID = ?
+      GROUP BY p.ProductID
+    `, [req.params.id]);
+    
+    res.json({ currentStock: data[0]?.currentStock || 0 });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/products/:id/stock', authenticateToken, checkRole(['Admin']), async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { newStock } = req.body;
+
+    const [current] = await connection.execute(
+      `SELECT 
+        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
+       FROM Products p
+       LEFT JOIN Stock st ON p.ProductID = st.ProductID
+       LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
+       WHERE p.ProductID = ?
+       GROUP BY p.ProductID`,
+      [req.params.id]
+    );
+
+    const currentStock = current[0]?.currentStock || 0;
+    const adjustment = newStock - currentStock;
+
+    const [supplier] = await connection.execute(
+      `SELECT SupplierID FROM Suppliers WHERE Name = 'Stock Adjustment' LIMIT 1`
+    );
+    
+    if (!supplier.length) {
+      throw new Error('Stock Adjustment supplier not found');
+    }
+
+    await connection.execute(
+      `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded)
+       VALUES (?, ?, ?)`,
+      [req.params.id, supplier[0].SupplierID, adjustment]
+    );
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Stock Adjustment Error:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    connection.release();
+  }
+});
 
 app.post('/api/stock', authenticateToken, checkRole(['Admin']), async (req, res) => {
   try {
@@ -605,8 +685,7 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
           SELECT 
               p.ProductID,
               p.Name,
-              (COALESCE(SUM(st.QuantityAdded), 0) - 
-              COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
+              (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
           FROM Products p
           LEFT JOIN Stock st ON p.ProductID = st.ProductID
           LEFT JOIN Sales sa ON p.ProductID = sa.ProductID

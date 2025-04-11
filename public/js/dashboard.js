@@ -120,6 +120,7 @@ function renderProducts(products) {
                                     <td class="actions">
                                         <button class="btn-edit" data-id="${product.ProductID}">✏️</button>
                                         <button class="btn-delete" data-id="${product.ProductID}">🗑️</button>
+                                        <button class="btn-stock" data-id="${product.ProductID}">📦</button>
                                     </td>
                                 ` : ''}
                             </tr>
@@ -271,6 +272,10 @@ function setupProductEvents() {
 
     document.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', handleDeleteProduct);
+    });
+
+    document.querySelectorAll('.btn-stock').forEach(btn => {
+        btn.addEventListener('click', handleStockAdjustment);
     });
 }
 
@@ -1116,4 +1121,109 @@ async function unlinkSupplierProduct(supplierId, productId) {
     } catch (error) {
       showError(error.message);
     }
+}
+
+async function handleStockAdjustment(e) {
+    const productId = e.target.dataset.id;
+    try {
+      const response = await fetch(`http://localhost:3000/api/products/${productId}/stock`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const { currentStock } = await response.json();
+      
+      showStockModal(productId, currentStock);
+    } catch (error) {
+      showError(error.message);
+    }
+  }
+
+function showStockModal(productId, currentStock) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-content restock-modal">
+        <h4>Restock Product</h4>
+        <form id="stockForm">
+            <div class="form-group">
+                <label>Supplier</label>
+                <select 
+                    name="supplierId" 
+                    class="form-select"
+                    id="supplierSelect" 
+                    required
+                >
+                    <option value="">Select Supplier</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Current Stock</label>
+                <input type="number" name="newStock" value="${currentStock}" required>
+            </div>
+
+            <div class="modal-actions">
+            <button type="button" class="btn-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+    `;
+
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    `;
+
+    const modalContent = modal.querySelector('.modal-content');
+    modalContent.style.cssText = `
+        background: var(--bg-dark);
+        padding: 2rem;
+        border-radius: 0.75rem;
+        width: 90%;
+        max-width: 500px;
+        position: relative;
+    `;
+  
+    fetch(`http://localhost:3000/api/products/${productId}/suppliers`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    })
+    .then(response => response.json())
+    .then(suppliers => {
+      const select = modal.querySelector('#supplierSelect');
+      select.innerHTML = suppliers.map(s => 
+        `<option value="${s.SupplierID}">${s.Name}</option>`
+      ).join('');
+    });
+    
+    modal.querySelector('.btn-cancel').addEventListener('click', () => modal.remove());
+    modal.querySelector('#stockForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newStock = parseInt(e.target.elements.newStock.value);
+      
+      try {
+        await fetch(`http://localhost:3000/api/products/${productId}/stock`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ newStock })
+        });
+        
+        modal.remove();
+        await loadSectionContent('products');
+        showSuccess('Stock updated successfully');
+      } catch (error) {
+        showError(error.message);
+      }
+    });
+  
+    document.body.appendChild(modal);
 }
