@@ -102,6 +102,7 @@ function renderProducts(products) {
                             <th>Name</th>
                             <th>Category</th>
                             <th>Price</th>
+                            <th>Current Stock</th>
                             ${isAdmin ? '<th>Actions</th>' : ''}
                         </tr>
                     </thead>
@@ -112,6 +113,9 @@ function renderProducts(products) {
                                 <td>${product.Name}</td>
                                 <td>${product.Category}</td>
                                 <td>₱${product.Price}</td>
+                                <td class="stock-value" data-product-id="${product.ProductID}">
+                                    ${product.currentStock}
+                                </td>
                                 ${isAdmin ? `
                                     <td class="actions">
                                         <button class="btn-edit" data-id="${product.ProductID}">✏️</button>
@@ -238,17 +242,22 @@ function renderRecentSales(sales) {
 
 function renderAddProductForm() {
     return `
-            <h4>Add New Product</h4>
-        <div class="add-form">
-            <form id="productForm">
-                <input type="text" name="name" placeholder="Product Name" required>
-                <input type="text" name="category" placeholder="Category">
-                <input type="number" step="0.01" name="price" placeholder="Price" required>
-                <button type="submit" class="btn-primary">Add Product</button>
-            </form>
-        </div>
+      <h4>Add New Product</h4>
+      <div class="add-form">
+        <form id="productForm">
+          <input type="text" name="name" placeholder="Product Name" required>
+          <input type="text" name="category" placeholder="Category">
+          <input type="number" step="0.01" name="price" placeholder="Price" required>
+          <select id="select-supplier" name="supplierId" required>
+            <option value="">Select Supplier</option>
+            ${window.suppliers?.map(s => `<option value="${s.SupplierID}">${s.Name}</option>`).join('')}
+          </select>
+          <input type="number" name="quantity" placeholder="Initial Stock" required>
+          <button type="submit" class="btn-primary">Add Product</button>
+        </form>
+      </div>
     `;
-}
+  }
 
 function setupProductEvents() {
     const form = document.getElementById('productForm');
@@ -271,8 +280,15 @@ async function handleProductSubmit(e) {
     const productData = {
         name: formData.get('name'),
         category: formData.get('category'),
-        price: parseFloat(formData.get('price'))
+        price: parseFloat(formData.get('price')),
+        supplierId: parseInt(formData.get('supplierId')),
+        quantity: parseInt(formData.get('quantity')) 
     };
+
+    if (!productData.supplierId || isNaN(productData.quantity)) {
+        showError('Supplier and initial stock are required');
+        return;
+    }
 
     try {
         const response = await fetch('http://localhost:3000/api/products', {
@@ -476,7 +492,7 @@ function renderProductsTable(products) {
                             <td>${product.Name}</td>
                             <td>${product.Category}</td>
                             <td>$${product.Price.toFixed(2)}</td>
-                            <td>${product.Stock}</td>
+                            <td>${product.currentStock}</td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -491,7 +507,12 @@ async function loadSectionContent(section) {
         const controller = new AbortController();
         window.fetchController = controller;
 
-        // Remove the generic fetch for relationships section
+        if (section === 'products') {
+            window.suppliers = await fetch('http://localhost:3000/api/suppliers', {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            }).then(r => r.json());
+        }
+
         if (section !== 'relationships') {
             const response = await fetch(`http://localhost:3000/api/${section}`, {
                 headers: {
@@ -525,7 +546,6 @@ async function loadSectionContent(section) {
             renderSectionContent(section, data);
         }
 
-        // Handle relationships section separately
         if (section === 'relationships') {
             const [relationships, suppliers, products] = await Promise.all([
                 fetch('http://localhost:3000/api/supplier-products', {
@@ -562,26 +582,6 @@ async function loadSectionContent(section) {
                 if (chart) chart.destroy();
             });
         }
-    }
-}
-
-function renderSection(section, data) {
-    const contentArea = document.getElementById('contentArea');
-    
-    switch(section) {
-        case 'products':
-            contentArea.innerHTML = renderProducts(data);
-            break;
-        case 'suppliers':
-            contentArea.innerHTML = renderSuppliers(data);
-            break;
-        case 'analytics':
-            contentArea.innerHTML = renderAnalytics(data);
-            break;
-        case 'relationships':
-            break;
-        default:
-            loadSectionContent('analytics');
     }
 }
 
@@ -973,13 +973,13 @@ async function handleSaleSubmit(e) {
     };
   
     try {
-      const response = await fetch('http://localhost:3000/api/sales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(saleData)
+        const response = await fetch('http://localhost:3000/api/sales', {
+            method: 'POST',
+            headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(saleData)
       });
   
       if (!response.ok) {

@@ -200,7 +200,14 @@ app.post('/api/users', authenticateToken, checkRole(['Admin']), async (req, res)
 
 app.get('/api/products', authenticateToken, async (req, res) => {
   try {
-    const [products] = await pool.execute('SELECT * FROM Products');
+    const [products] = await pool.execute(`
+      SELECT p.*, 
+        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
+      FROM Products p
+      LEFT JOIN Stock st ON p.ProductID = st.ProductID
+      LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
+      GROUP BY p.ProductID
+    `);
     res.json(products);
   } catch (error) {
     console.error(error);
@@ -209,35 +216,40 @@ app.get('/api/products', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/products', authenticateToken, checkRole(['Admin']), async (req, res) => {
-	try {
-	  const { name, category, price } = req.body;
-	  
-	  const [existing] = await pool.execute(
-		'SELECT * FROM Products WHERE Name = ?',
-		[name]
-	  );
-	  
-	  if (existing.length > 0) {
-		return res.status(409).json({ 
-		  error: 'Conflict',
-		  message: 'Product with this name already exists' 
-		});
-	  }
-  
-	  const [result] = await pool.execute(
-		`INSERT INTO Products (Name, Category, Price)
-		VALUES (?, ?, ?)`,
-		[name, category, price]
-	  );
-	  
-	  res.status(201).json({ productId: result.insertId });
-	} catch (error) {
-	  console.error(error);
-	  res.status(500).json({ 
-		error: 'Server error',
-		message: error.message 
-	  });
-	}
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { name, category, price, supplierId, quantity } = req.body;
+
+    if (!name || !price || !supplierId || !quantity) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    const [productResult] = await connection.execute(
+      `INSERT INTO Products (Name, Category, Price) VALUES (?, ?, ?)`,
+      [name, category, price]
+    );
+    const productId = productResult.insertId;
+
+    await connection.execute(
+      `INSERT INTO SupplierProducts (SupplierID, ProductID) VALUES (?, ?)`,
+      [supplierId, productId]
+    );
+
+    await connection.execute(
+      `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded) VALUES (?, ?, ?)`,
+      [productId, supplierId, quantity]
+    );
+
+    await connection.commit();
+    res.status(201).json({ productId });
+  } catch (error) {
+    await connection.rollback();
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    connection.release();
+  }
 });
 
 app.get('/api/products/:id', authenticateToken, async (req, res) => {
@@ -465,11 +477,11 @@ app.post('/api/stock', authenticateToken, checkRole(['Admin']), async (req, res)
 app.get('/api/sales', async (req, res) => {
 	try {
 	  const [sales] = await pool.execute(`
-		SELECT s.SaleID, s.ProductID, p.Name AS ProductName, 
-			   s.QuantitySold, s.TotalAmount, s.SaleDate 
-		FROM Sales s
-		JOIN Products p ON s.ProductID = p.ProductID
-		ORDER BY s.SaleDate DESC
+      SELECT s.SaleID, s.ProductID, p.Name AS ProductName, 
+          s.QuantitySold, s.TotalAmount, s.SaleDate 
+      FROM Sales s
+      JOIN Products p ON s.ProductID = p.ProductID
+      ORDER BY s.SaleDate DESC
 	  `);
 	  res.json(sales);
 	} catch (error) {
@@ -478,77 +490,65 @@ app.get('/api/sales', async (req, res) => {
 	}
 });
 
-app.post('/api/sales', authenticateToken, checkRole(['Admin', 'Manager']), async (req, res) => {
-	const connection = await pool.getConnection();
-	try {
-	  await connection.beginTransaction();
-	  const { productId, quantitySold } = req.body;
-  
-	  const [stock] = await connection.execute(
-		`SELECT SUM(QuantityAdded) AS totalStock 
-		FROM Stock 
-		WHERE ProductID = ?`,
-		[productId]
-	  );
-	  
-	  const [sales] = await connection.execute(
-		`SELECT SUM(QuantitySold) AS totalSales 
-		FROM Sales 
-		WHERE ProductID = ?`,
-		[productId]
-	  );
-	  
-	  const available = (stock[0].totalStock || 0) - (sales[0].totalSales || 0);
-	  if (available < quantitySold) {
-		await connection.rollback();
-		return res.status(400).json({ error: 'Insufficient stock' });
-	  }
-  
-	  const [product] = await connection.execute(
-		`SELECT Price FROM Products WHERE ProductID = ?`,
-		[productId]
-	  );
-	  
-	  const [result] = await connection.execute(
-		`INSERT INTO Sales (ProductID, QuantitySold, TotalAmount, SaleDate)
-		VALUES (?, ?, ?, NOW())`,
-		[productId, quantitySold, quantitySold * product[0].Price]
-	  );
-  
-	  await connection.commit();
-	  res.status(201).json({ 
-		saleId: result.insertId,
-		message: 'Sale recorded successfully'
-	  });
-	} catch (error) {
-	  await connection.rollback();
-	  console.error(error);
-	  res.status(500).json({ error: 'Server error' });
-	} finally {
-	  connection.release();
-	}
+app.post('/api/sales', authenticateToken, checkRole(['Admin', 'Manager', 'Staff']), async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { productId, quantitySold } = req.body;
+
+    const [stock] = await connection.execute(`
+      SELECT 
+        (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
+      FROM Products p
+      LEFT JOIN Stock st ON p.ProductID = st.ProductID
+      LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
+      WHERE p.ProductID = ?
+    `, [productId]);
+
+    if (stock[0].currentStock < quantitySold) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Insufficient stock' });
+    }
+
+    const [product] = await connection.execute(
+      'SELECT Price FROM Products WHERE ProductID = ?',
+      [productId]
+    );
+    
+    await connection.execute(
+      `INSERT INTO Sales (ProductID, QuantitySold, TotalAmount, SaleDate)
+      VALUES (?, ?, ?, NOW())`,
+      [productId, quantitySold, quantitySold * product[0].Price]
+    );
+
+    await connection.commit();
+    res.status(201).json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Sales Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    connection.release();
+  }
 });
 
 // Analytics
 
 app.get('/api/analytics/stock', authenticateToken, async (req, res) => {
-	try {
-	  const [data] = await pool.execute(`
-		SELECT 
-		  p.ProductID,
-		  p.Name,
-		  (COALESCE(SUM(st.QuantityAdded), 0) - 
-		   COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
-		FROM Products p
-		LEFT JOIN Stock st ON p.ProductID = st.ProductID
-		LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
-		GROUP BY p.ProductID, p.Name
-	  `);
-	  res.json(data);
-	} catch (error) {
-	  console.error(error);
-	  res.status(500).json({ error: 'Server error' });
-	}
+  try {
+    const [data] = await pool.execute(`
+      SELECT 
+        p.ProductID,
+        p.Name,
+        (COALESCE(
+          (SELECT SUM(QuantityAdded) FROM Stock WHERE ProductID = p.ProductID), 0) - COALESCE((SELECT SUM(QuantitySold) FROM Sales WHERE ProductID = p.ProductID), 0)) AS currentStock
+      FROM Products p
+    `);
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 app.get('/api/analytics/sales', authenticateToken, async (req, res) => {

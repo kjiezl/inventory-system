@@ -45,7 +45,8 @@ button {
 #signupFormElement select,
 #salesForm select,
 #supplierSelect,
-#productSelect {
+#productSelect,
+#select-supplier {
   background-color: var(--form-bg);
 }
 
