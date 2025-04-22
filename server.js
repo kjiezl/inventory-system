@@ -218,15 +218,15 @@ app.post('/api/products', authenticateToken, checkRole(['Admin']), async (req, r
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const { name, category, price, suppliers } = req.body;
+    const { name, category, suppliers } = req.body;
 
-    if (!name || !price || !Array.isArray(suppliers) || suppliers.length === 0) {
+    if (!name || !Array.isArray(suppliers) || suppliers.length === 0) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
     const [productResult] = await connection.execute(
-      `INSERT INTO Products (Name, Category, Price) VALUES (?, ?, ?)`,
-      [name, category, price]
+      `INSERT INTO Products (Name, Category) VALUES (?, ?)`,
+      [name, category]
     );
     const productId = productResult.insertId;
 
@@ -322,11 +322,11 @@ app.put('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req
   try {
     await connection.beginTransaction();
     const productId = req.params.id;
-    const { name, category, price, suppliers } = req.body;
+    const { name, category, suppliers } = req.body;
 
     await connection.execute(
-      `UPDATE Products SET Name = ?, Category = ?, Price = ? WHERE ProductID = ?`,
-      [name, category, price, productId]
+      `UPDATE Products SET Name = ?, Category = ? WHERE ProductID = ?`,
+      [name, category, productId]
     );
 
     if (Array.isArray(suppliers)) {

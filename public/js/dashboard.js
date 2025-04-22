@@ -102,7 +102,6 @@ function renderProducts(products) {
                           <th>ID</th>
                           <th>Name</th>
                           <th>Category</th>
-                          <th>Base Price</th>
                           <th>Supplier Details</th>
                           ${isAdmin ? '<th>Actions</th>' : ''}
                       </tr>
@@ -113,7 +112,6 @@ function renderProducts(products) {
                               <td>${product.ProductID}</td>
                               <td>${product.Name}</td>
                               <td>${product.Category}</td>
-                              <td>₱${product.Price}</td>
                               <td id="supplier-info-${product.ProductID}">
                                   <em>Loading...</em>
                               </td>
@@ -131,33 +129,6 @@ function renderProducts(products) {
           </div>
       </div>
   `;
-}
-
-function renderSuppliers(suppliers) {
-    return `
-        <div class="section-container">
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Contact Info</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${suppliers.map(supplier => `
-                            <tr>
-                                <td>${supplier.SupplierID}</td>
-                                <td>${supplier.Name}</td>
-                                <td>${supplier.ContactInfo}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
 }
 
 function renderAnalytics(data) {
@@ -256,11 +227,6 @@ function renderAddProductForm() {
         <div class="form-group">
           <label>Category</label>
           <input type="text" name="category" placeholder="Enter category" class="form-control">
-        </div>
-
-        <div class="form-group">
-          <label>Base Price</label>
-          <input type="number" name="price" placeholder="0.00" step="0.01" class="form-control" required>
         </div>
 
         <div class="form-group supplier-section">
@@ -443,10 +409,6 @@ async function showEditProductModal(product) {
                 <label>Category</label>
                 <input type="text" name="category" value="${product.Category}">
               </div>
-              <div class="form-group">
-                <label>Price</label>
-                <input type="number" step="0.01" name="price" value="${product.Price}" required>
-              </div>
 
               <div id="edit-supplier-container">
                 ${supplierDetails.map((s, i) => `
@@ -599,35 +561,6 @@ function showSuccess(message) {
     setTimeout(() => successElement.remove(), 3000);
 }
 
-function renderProductsTable(products) {
-    const html = `
-        <div class="card">
-            <h3>Product List</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Category</th>
-                        <th>Price</th>
-                        <th>Stock</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${products.map(product => `
-                        <tr>
-                            <td>${product.Name}</td>
-                            <td>${product.Category}</td>
-                            <td>$${product.Price}</td>
-                            <td>${product.currentStock}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-    document.getElementById('contentArea').innerHTML = html;
-}
-
 async function loadSectionContent(section) {
     try {
         const controller = new AbortController();
@@ -687,7 +620,7 @@ async function loadSectionContent(section) {
                       }
           
                       supplierInfoCell.innerHTML = suppliers.map(s =>
-                          `${s.SupplierName} - ${s.Quantity} pcs @ ₱${s.Price}`
+                          `${s.SupplierName} - ${s.Quantity} pcs for ₱${s.Price}`
                       ).join('<br>');
                   })
                   .catch(err => {
