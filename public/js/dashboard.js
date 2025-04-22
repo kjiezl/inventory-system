@@ -1,4 +1,5 @@
 let currentSection = null;
+let supplierInputCount = 1;
 
 function initializeDashboard() {
     updateUIForRole(localStorage.getItem('roleId'));
@@ -90,46 +91,46 @@ function renderSectionContent(section, data) {
 }
 
 function renderProducts(products) {
-    const isAdmin = localStorage.getItem('roleId') === '1';
-    return `
-        <div class="section-container">
-            ${isAdmin ? renderAddProductForm() : ''}
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Category</th>
-                            <th>Price</th>
-                            <th>Current Stock</th>
-                            ${isAdmin ? '<th>Actions</th>' : ''}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${products.map(product => `
-                            <tr>
-                                <td>${product.ProductID}</td>
-                                <td>${product.Name}</td>
-                                <td>${product.Category}</td>
-                                <td>₱${product.Price}</td>
-                                <td class="stock-value" data-product-id="${product.ProductID}">
-                                    ${product.currentStock}
-                                </td>
-                                ${isAdmin ? `
-                                    <td class="actions">
-                                        <button class="btn-edit" data-id="${product.ProductID}">✏️</button>
-                                        <button class="btn-delete" data-id="${product.ProductID}">🗑️</button>
-                                        <button class="btn-stock" data-id="${product.ProductID}">📦</button>
-                                    </td>
-                                ` : ''}
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
+  const isAdmin = localStorage.getItem('roleId') === '1';
+  return `
+      <div class="section-container">
+          ${isAdmin ? renderAddProductForm() : ''}
+          <div class="table-container">
+              <table class="data-table">
+                  <thead>
+                      <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Category</th>
+                          <th>Base Price</th>
+                          <th>Supplier Details</th>
+                          ${isAdmin ? '<th>Actions</th>' : ''}
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${products.map(product => `
+                          <tr>
+                              <td>${product.ProductID}</td>
+                              <td>${product.Name}</td>
+                              <td>${product.Category}</td>
+                              <td>₱${product.Price}</td>
+                              <td id="supplier-info-${product.ProductID}">
+                                  <em>Loading...</em>
+                              </td>
+                              ${isAdmin ? `
+                                  <td class="actions">
+                                      <button class="btn-edit" data-id="${product.ProductID}">✏️</button>
+                                      <button class="btn-delete" data-id="${product.ProductID}">🗑️</button>
+                                      <button class="btn-stock" data-id="${product.ProductID}">📦</button>
+                                  </td>
+                              ` : ''}
+                          </tr>
+                      `).join('')}
+                  </tbody>
+              </table>
+          </div>
+      </div>
+  `;
 }
 
 function renderSuppliers(suppliers) {
@@ -242,26 +243,42 @@ function renderRecentSales(sales) {
 }
 
 function renderAddProductForm() {
-    return `
-      <h4>Add New Product</h4>
-      <div class="add-form">
-        <form id="productForm">
-          <input type="text" name="name" placeholder="Product Name" required>
-          <input type="text" name="category" placeholder="Category">
-          <input type="number" step="0.01" name="price" placeholder="Price" required>
-          <select id="select-supplier" name="supplierId" required>
-            <option value="">Select Supplier</option>
-            ${window.suppliers?.map(s => `<option value="${s.SupplierID}">${s.Name}</option>`).join('')}
-          </select>
-          <input type="number" name="quantity" placeholder="Initial Stock" required>
-          <button type="submit" class="btn-primary">Add Product</button>
-        </form>
+  supplierInputCount = 1;
+  return `
+    <h4>Add New Product</h4>
+    <form id="productForm">
+      <input type="text" name="name" placeholder="Product Name" required>
+      <input type="text" name="category" placeholder="Category">
+      <input type="number" name="price" placeholder="Base Price" step="0.01" required>
+      
+      <div id="supplierInputs">
+        ${renderSupplierInput(0)}
       </div>
-    `;
-  }
+      
+      <button type="button" id="addSupplierBtn">Add Supplier</button>
+      <button type="submit" class="btn-primary">Add Product</button>
+    </form>
+  `;
+}
+
+
+function renderSupplierInput(index) {
+  return `
+    <div class="supplier-group" data-index="${index}">
+      <select name="supplierId_${index}" required>
+        <option value="">Select Supplier</option>
+        ${window.suppliers?.map(s => `<option value="${s.SupplierID}">${s.Name}</option>`).join('')}
+      </select>
+      <input type="number" name="quantity_${index}" placeholder="Stock" required>
+      <input type="number" name="price_${index}" placeholder="Price" step="0.01" required>
+      <button type="button" class="remove-supplier">Remove</button>
+    </div>
+  `;
+}
 
 function setupProductEvents() {
     const form = document.getElementById('productForm');
+    let supplierInputCount = 1;
     if (form) {
         form.addEventListener('submit', handleProductSubmit);
     }
@@ -277,47 +294,75 @@ function setupProductEvents() {
     document.querySelectorAll('.btn-stock').forEach(btn => {
         btn.addEventListener('click', handleStockAdjustment);
     });
+
+    document.getElementById('addSupplierBtn')?.addEventListener('click', () => {
+      const container = document.getElementById('supplierInputs');
+      const index = supplierInputCount++;
+    
+      const div = document.createElement('div');
+      div.innerHTML = renderSupplierInput(index);
+      container.appendChild(div);
+    
+      div.querySelector('.remove-supplier')?.addEventListener('click', () => div.remove());
+    });    
 }
 
 async function handleProductSubmit(e) {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const productData = {
-        name: formData.get('name'),
-        category: formData.get('category'),
-        price: parseFloat(formData.get('price')),
-        supplierId: parseInt(formData.get('supplierId')),
-        quantity: parseInt(formData.get('quantity')) 
-    };
+  e.preventDefault();
+  const formData = new FormData(e.target);
 
-    if (!productData.supplierId || isNaN(productData.quantity)) {
-        showError('Supplier and initial stock are required');
-        return;
+  const supplierGroups = document.querySelectorAll('.supplier-group');
+  const suppliers = [];
+
+  supplierGroups.forEach(group => {
+    const index = group.dataset.index;
+    const supplierId = formData.get(`supplierId_${index}`);
+    const quantity = formData.get(`quantity_${index}`);
+    const price = formData.get(`price_${index}`);
+
+    if (supplierId && quantity && price) {
+      suppliers.push({
+        supplierId: parseInt(supplierId),
+        quantity: parseInt(quantity),
+        price: parseFloat(price)
+      });
+    }
+  });
+
+  if (!suppliers.length) {
+    showError('At least one supplier is required.');
+    return;
+  }
+
+  const productData = {
+    name: formData.get('name'),
+    category: formData.get('category'),
+    price: parseFloat(formData.get('price')),
+    suppliers
+  };
+
+  console.log("Submitting:", productData);
+
+  try {
+    const response = await fetch('http://localhost:3000/api/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify(productData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to add product');
     }
 
-    try {
-        const response = await fetch('http://localhost:3000/api/products', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(productData)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            const conflictMessage = errorData.error?.toLowerCase().includes('exist') 
-                ? errorData.error 
-                : 'Product already exists';
-            throw new Error(conflictMessage);
-        }
-        
-        await loadSectionContent('products');
-        showSuccess('Product added successfully');
-    } catch (error) {
-        showError(error.message);
-    }
+    await loadSectionContent('products');
+    showSuccess('Product added successfully');
+  } catch (error) {
+    showError(error.message);
+  }
 }
 
 async function handleEditProduct(e) {
@@ -496,7 +541,7 @@ function renderProductsTable(products) {
                         <tr>
                             <td>${product.Name}</td>
                             <td>${product.Category}</td>
-                            <td>$${product.Price.toFixed(2)}</td>
+                            <td>$${product.Price}</td>
                             <td>${product.currentStock}</td>
                         </tr>
                     `).join('')}
@@ -549,6 +594,35 @@ async function loadSectionContent(section) {
             }
             
             renderSectionContent(section, data);
+
+            if (section === 'products') {
+              for (const product of data) {
+                  fetch(`http://localhost:3000/api/products/${product.ProductID}/stock-detail`, {
+                      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                  })
+                  .then(res => res.json())
+                  .then(suppliers => {
+                      const supplierInfoCell = document.getElementById(`supplier-info-${product.ProductID}`);
+                      if (!supplierInfoCell) return;
+          
+                      if (!suppliers.length) {
+                          supplierInfoCell.innerHTML = '<em>No suppliers</em>';
+                          return;
+                      }
+          
+                      supplierInfoCell.innerHTML = suppliers.map(s =>
+                          `${s.SupplierName} - ${s.Quantity} pcs @ ₱${s.Price}`
+                      ).join('<br>');
+                  })
+                  .catch(err => {
+                    console.error(`Failed to load supplier info for product ${product.ProductID}`, err);
+                    const supplierInfoCell = document.getElementById(`supplier-info-${product.ProductID}`);
+                    if (supplierInfoCell) {
+                        supplierInfoCell.innerHTML = '<span style="color:red">Error loading</span>';
+                    }
+                  });                  
+              }
+          }          
         }
 
         if (section === 'relationships') {

@@ -218,9 +218,9 @@ app.post('/api/products', authenticateToken, checkRole(['Admin']), async (req, r
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const { name, category, price, supplierId, quantity } = req.body;
+    const { name, category, price, suppliers } = req.body;
 
-    if (!name || !price || !supplierId || !quantity) {
+    if (!name || !price || !Array.isArray(suppliers) || suppliers.length === 0) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
@@ -230,15 +230,16 @@ app.post('/api/products', authenticateToken, checkRole(['Admin']), async (req, r
     );
     const productId = productResult.insertId;
 
-    await connection.execute(
-      `INSERT INTO SupplierProducts (SupplierID, ProductID) VALUES (?, ?)`,
-      [supplierId, productId]
-    );
-
-    await connection.execute(
-      `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded) VALUES (?, ?, ?)`,
-      [productId, supplierId, quantity]
-    );
+    for (const { supplierId, quantity, price: supplierPrice } of suppliers) {
+      await connection.execute(
+        `INSERT INTO SupplierProducts (SupplierID, ProductID) VALUES (?, ?)`,
+        [supplierId, productId]
+      );
+      await connection.execute(
+        `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded, Price) VALUES (?, ?, ?, ?)`,
+        [productId, supplierId, quantity, supplierPrice]
+      );
+    }
 
     await connection.commit();
     res.status(201).json({ productId });
@@ -265,7 +266,22 @@ app.get('/api/products/:id', authenticateToken, async (req, res) => {
       });
     }
 
+    const product = products[0];
+
+    const [supplierData] = await pool.execute(
+      `SELECT s.SupplierID, s.Name AS SupplierName, 
+              COALESCE(SUM(st.QuantityAdded), 0) AS Quantity,
+              MAX(st.Price) AS Price
+       FROM Suppliers s
+       JOIN SupplierProducts sp ON s.SupplierID = sp.SupplierID
+       LEFT JOIN Stock st ON st.SupplierID = s.SupplierID AND st.ProductID = ?
+       WHERE sp.ProductID = ?
+       GROUP BY s.SupplierID`,
+      [productId, productId]
+    );
+
     res.setHeader('Content-Type', 'application/json');
+    product.Suppliers = supplierData;
     res.json(products[0]);
 
   } catch (error) {
@@ -274,6 +290,30 @@ app.get('/api/products/:id', authenticateToken, async (req, res) => {
       error: 'Database Error',
       message: 'Failed to retrieve product'
     });
+  }
+});
+
+app.get('/api/products/:id/stock-detail', authenticateToken, async (req, res) => {
+  try {
+    const productId = req.params.id;
+
+    const [details] = await pool.execute(`
+      SELECT 
+        s.SupplierID,
+        s.Name AS SupplierName,
+        COALESCE(SUM(st.QuantityAdded), 0) AS Quantity,
+        MAX(st.Price) AS Price
+      FROM Suppliers s
+      JOIN SupplierProducts sp ON s.SupplierID = sp.SupplierID
+      LEFT JOIN Stock st ON st.ProductID = ? AND st.SupplierID = s.SupplierID
+      WHERE sp.ProductID = ?
+      GROUP BY s.SupplierID
+    `, [productId, productId]);
+
+    res.json(details);
+  } catch (error) {
+    console.error('Stock Detail Error:', error);
+    res.status(500).json({ error: 'Server error while fetching stock detail' });
   }
 });
 
