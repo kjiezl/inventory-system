@@ -703,68 +703,71 @@ app.get('/api/validate-token', authenticateToken, (req, res) => {
 
 app.get('/api/analytics', authenticateToken, async (req, res) => {
   try {
-      const [salesData] = await pool.execute(`
-          SELECT 
-              p.ProductID,
-              p.Name,
-              SUM(s.QuantitySold) AS totalSold,
-              SUM(s.TotalAmount) AS totalRevenue
-          FROM Sales s
-          JOIN Products p ON s.ProductID = p.ProductID
-          GROUP BY p.ProductID
-      `);
+    const [salesData] = await pool.execute(`
+      SELECT 
+          p.ProductID,
+          p.Name,
+          SUM(s.QuantitySold) AS totalSold,
+          SUM(s.TotalAmount) AS totalRevenue
+      FROM Sales s
+      JOIN Products p ON s.ProductID = p.ProductID
+      GROUP BY p.ProductID
+    `);
 
-      const [stockData] = await pool.execute(`
-          SELECT 
-              p.ProductID,
-              p.Name,
-              COALESCE(SUM(st.QuantityAdded), 0) AS currentStock
-          FROM Products p
-          LEFT JOIN Stock st ON p.ProductID = st.ProductID
-          GROUP BY p.ProductID
-      `);
+    const [stockData] = await pool.execute(`
+      SELECT 
+          p.ProductID,
+          p.Name,
+          COALESCE(SUM(st.QuantityAdded), 0) AS currentStock
+      FROM Products p
+      LEFT JOIN Stock st ON st.ProductID = p.ProductID
+      GROUP BY p.ProductID
+    `);
 
-      const parsedSales = salesData.map(item => ({
-          ...item,
-          totalSold: Number(item.totalSold),
-          totalRevenue: Number(item.totalRevenue)
-      }));
+    const parsedSales = salesData.map(item => ({
+      ...item,
+      totalSold: Number(item.totalSold),
+      totalRevenue: Number(item.totalRevenue)
+    }));
 
-      const parsedStock = stockData.map(item => ({
-          ...item,
-          currentStock: Number(item.currentStock)
-      }));
+    const parsedStock = stockData.map(item => ({
+      ...item,
+      currentStock: Number(item.currentStock)
+    }));
 
-      const chartData = parsedSales.map(sale => {
-          const stock = parsedStock.find(item => item.ProductID === sale.ProductID);
-          return {
-              Name: sale.Name,
-              totalRevenue: sale.totalRevenue,
-              currentStock: stock?.currentStock || 0
-          };
-      });
+    const chartData = parsedStock.map(stock => {
+      const sale = parsedSales.find(s => s.ProductID === stock.ProductID);
+      return {
+        Name: stock.Name,
+        currentStock: stock.currentStock,
+        totalRevenue: sale?.totalRevenue || 0
+      };
+    });
 
-      const [recentSales] = await pool.execute(`
-          SELECT s.*, p.Name AS ProductName 
-          FROM Sales s
-          JOIN Products p ON s.ProductID = p.ProductID
-          ORDER BY SaleDate DESC
-          LIMIT 5
-      `);
+    const [recentSales] = await pool.execute(`
+      SELECT s.*, p.Name AS ProductName 
+      FROM Sales s
+      JOIN Products p ON s.ProductID = p.ProductID
+      ORDER BY SaleDate DESC
+      LIMIT 5
+    `);
 
-      const totalRevenue = parsedSales.reduce((acc, curr) => acc + curr.totalRevenue, 0);
-      const totalSold = parsedSales.reduce((acc, curr) => acc + curr.totalSold, 0);
-      
-      res.json({
-          totalRevenue: totalRevenue.toFixed(2),
-          avgOrderValue: totalSold > 0 ? (totalRevenue / totalSold).toFixed(2) : 0,
-          lowStockCount: chartData.filter(item => item.currentStock < 10).length,
-          recentSales,
-          chartData
-      });
+    const totalRevenue = parsedSales.reduce((acc, cur) => acc + cur.totalRevenue, 0);
+    const totalSold = parsedSales.reduce((acc, cur) => acc + cur.totalSold, 0);
+
+    const lowStockCount = chartData.filter(item => item.currentStock < 10).length;
+
+    res.json({
+      totalRevenue: totalRevenue.toFixed(2),
+      avgOrderValue: totalSold > 0 ? (totalRevenue / totalSold).toFixed(2) : 0,
+      lowStockCount,
+      recentSales,
+      chartData
+    });
+
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Server error' });
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
