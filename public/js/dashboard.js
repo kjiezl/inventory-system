@@ -102,7 +102,9 @@ function renderProducts(products) {
                           <th>ID</th>
                           <th>Name</th>
                           <th>Category</th>
-                          <th>Supplier Details</th>
+                          <th>Supplier</th>
+                          <th>Stock</th>
+                          <th>Price</th>
                           ${isAdmin ? '<th>Actions</th>' : ''}
                       </tr>
                   </thead>
@@ -112,14 +114,14 @@ function renderProducts(products) {
                               <td>${product.ProductID}</td>
                               <td>${product.Name}</td>
                               <td>${product.Category}</td>
-                              <td id="supplier-info-${product.ProductID}">
-                                  <em>Loading...</em>
-                              </td>
+                              <td id="supplier-name-${product.ProductID}"><em>Loading...</em></td>
+                              <td id="supplier-stock-${product.ProductID}"><em>Loading...</em></td>
+                              <td id="supplier-price-${product.ProductID}"><em>Loading...</em></td>
                               ${isAdmin ? `
                                   <td class="actions">
                                       <button class="btn-edit" data-id="${product.ProductID}">✏️</button>
                                       <button class="btn-delete" data-id="${product.ProductID}">🗑️</button>
-                                      <button class="btn-stock" data-id="${product.ProductID}">📦</button>
+                                      <!-- <button class="btn-stock" data-id="${product.ProductID}">📦</button> -->
                                   </td>
                               ` : ''}
                           </tr>
@@ -611,24 +613,12 @@ async function loadSectionContent(section) {
                   })
                   .then(res => res.json())
                   .then(suppliers => {
-                      const supplierInfoCell = document.getElementById(`supplier-info-${product.ProductID}`);
-                      if (!supplierInfoCell) return;
-          
-                      if (!suppliers.length) {
-                          supplierInfoCell.innerHTML = '<em>No suppliers</em>';
-                          return;
-                      }
-          
-                      supplierInfoCell.innerHTML = suppliers.map(s =>
-                          `${s.SupplierName} - ${s.Quantity} pcs for ₱${s.Price}`
-                      ).join('<br>');
+                      document.getElementById(`supplier-name-${product.ProductID}`).innerHTML = suppliers.map(s => s.SupplierName).join('<br>');
+                      document.getElementById(`supplier-stock-${product.ProductID}`).innerHTML = suppliers.map(s => s.Quantity).join('<br>');
+                      document.getElementById(`supplier-price-${product.ProductID}`).innerHTML = suppliers.map(s => `₱${s.Price}`).join('<br>');
                   })
                   .catch(err => {
                     console.error(`Failed to load supplier info for product ${product.ProductID}`, err);
-                    const supplierInfoCell = document.getElementById(`supplier-info-${product.ProductID}`);
-                    if (supplierInfoCell) {
-                        supplierInfoCell.innerHTML = '<span style="color:red">Error loading</span>';
-                    }
                   });                  
               }
           }          

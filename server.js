@@ -606,33 +606,31 @@ app.post('/api/sales', authenticateToken, checkRole(['Admin', 'Manager', 'Staff'
     await connection.beginTransaction();
     const { productId, supplierId, quantitySold } = req.body;
 
-    const [stock] = await connection.execute(
-      `SELECT SUM(QuantityAdded) AS availableStock 
+    const [[stock]] = await connection.execute(
+      `SELECT SUM(QuantityAdded) AS availableStock,
+              MAX(Price) AS unitPrice
        FROM Stock 
        WHERE ProductID = ? AND SupplierID = ?`,
       [productId, supplierId]
     );
 
-    if (stock[0].availableStock < quantitySold) {
+    if (stock.availableStock < quantitySold) {
       await connection.rollback();
       return res.status(400).json({ error: 'Insufficient stock' });
     }
+
+    const totalAmount = quantitySold * stock.unitPrice;
 
     await connection.execute(
       `INSERT INTO Stock (ProductID, SupplierID, QuantityAdded)
        VALUES (?, ?, ?)`,
       [productId, supplierId, -quantitySold]
     );
-    
-    const [product] = await connection.execute(
-      `SELECT Price FROM Products WHERE ProductID = ?`,
-      [productId]
-    );
 
     await connection.execute(
       `INSERT INTO Sales (ProductID, QuantitySold, TotalAmount, SaleDate)
        VALUES (?, ?, ?, NOW())`,
-      [productId, quantitySold, quantitySold * product[0].Price]
+      [productId, quantitySold, totalAmount]
     );
 
     await connection.commit();
