@@ -245,27 +245,47 @@ function renderRecentSales(sales) {
 function renderAddProductForm() {
   supplierInputCount = 1;
   return `
-    <h4>Add New Product</h4>
-    <form id="productForm">
-      <input type="text" name="name" placeholder="Product Name" required>
-      <input type="text" name="category" placeholder="Category">
-      <input type="number" name="price" placeholder="Base Price" step="0.01" required>
-      
-      <div id="supplierInputs">
-        ${renderSupplierInput(0)}
-      </div>
-      
-      <button type="button" id="addSupplierBtn">Add Supplier</button>
-      <button type="submit" class="btn-primary">Add Product</button>
-    </form>
+    <div class="card">
+      <h4>Add New Product</h4>
+      <form id="productForm" class="add-form">
+        <div class="form-group">
+          <label>Product Name</label>
+          <input type="text" name="name" placeholder="Enter product name" class="form-control" required>
+        </div>
+
+        <div class="form-group">
+          <label>Category</label>
+          <input type="text" name="category" placeholder="Enter category" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label>Base Price</label>
+          <input type="number" name="price" placeholder="0.00" step="0.01" class="form-control" required>
+        </div>
+
+        <div class="form-group supplier-section">
+          <label>Suppliers & Stock</label>
+          <div id="supplierInputs">
+            ${renderSupplierInput(0)}
+          </div>
+          <button type="button" id="addSupplierBtn" class="btn-primary">
+            <span>+</span> Add Supplier
+          </button>
+        </div>
+
+        <div class="form-actions">
+          <button type="reset" class="btn-cancel">Clear Form</button>
+          <button type="submit" class="btn-primary">Create Product</button>
+        </div>
+      </form>
+    </div>
   `;
 }
-
 
 function renderSupplierInput(index) {
   return `
     <div class="supplier-group" data-index="${index}">
-      <select name="supplierId_${index}" required>
+      <select id="select-supplier" style="background-color: var(--form-bg);" name="supplierId_${index}" required>
         <option value="">Select Supplier</option>
         ${window.suppliers?.map(s => `<option value="${s.SupplierID}">${s.Name}</option>`).join('')}
       </select>
