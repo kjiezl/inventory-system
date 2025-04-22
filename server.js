@@ -472,15 +472,24 @@ app.delete('/api/suppliers/:id', authenticateToken, checkRole(['Admin']), async 
 
 app.get('/api/stock/:productId/:supplierId', authenticateToken, async (req, res) => {
   try {
-    const [data] = await pool.execute(
-      `SELECT SUM(QuantityAdded) AS quantity 
+    const { productId, supplierId } = req.params;
+    
+    if (isNaN(productId) || isNaN(supplierId)) {
+      return res.status(400).json({ error: 'Invalid product or supplier ID' });
+    }
+
+    const [stock] = await pool.execute(
+      `SELECT COALESCE(SUM(QuantityAdded), 0) AS stock
        FROM Stock 
        WHERE ProductID = ? AND SupplierID = ?`,
-      [req.params.productId, req.params.supplierId]
+      [productId, supplierId]
     );
-    res.json({ quantity: data[0].quantity || 0 });
+
+    const availableStock = Number(stock[0].stock);
+    res.json({ stock: availableStock });
+    
   } catch (error) {
-    console.error(error);
+    console.error('Stock endpoint error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -742,6 +751,22 @@ app.delete('/api/supplier-products/:supplierId/:productId', authenticateToken, c
       [req.params.supplierId, req.params.productId]
     );
     res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/suppliers/:id/products', authenticateToken, async (req, res) => {
+  try {
+    const [products] = await pool.execute(`
+      SELECT p.* 
+      FROM Products p
+      JOIN SupplierProducts sp ON p.ProductID = sp.ProductID
+      WHERE sp.SupplierID = ?
+    `, [req.params.id]);
+    
+    res.json(products);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });

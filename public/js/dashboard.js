@@ -909,91 +909,185 @@ function renderSuppliers(suppliers) {
 }
 
 function renderSales(salesData) {
-    return `
-      <div class="section-container">
-      <h4>Add Sales</h4>
-        <div class="sales-form">
-          <form id="salesForm">
-            <select name="supplierId" id="supplierSelect" required>
-                <option value="">Select Supplier</option>
-            </select>
-            <select name="productId" id="productSelect" required>
-              <option value="">Select Product</option>
-            </select>
-            <input type="number" name="quantity" min="1" placeholder="Quantity" required>
-            <button type="submit" class="btn-primary">Record Sale</button>
-          </form>
-        </div>
-        <div class="table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Product</th>
-                <th>Quantity</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${salesData.map(sale => `
-                <tr>
-                  <td>${new Date(sale.SaleDate).toLocaleDateString()}</td>
-                  <td>${sale.ProductName}</td>
-                  <td>${sale.QuantitySold}</td>
-                  <td>₱${sale.TotalAmount}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
+  return `
+    <div class="section-container">
+      <h2 class="section-title">Record New Sale</h2>
+        <form id="salesForm" class="sales-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Supplier</label>
+              <select name="supplierId" id="supplierSelect" class="form-control" required>
+                <option value="">Select a Supplier</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Product</label>
+              <select name="productId" id="productSelect" class="form-control" disabled required>
+                <option value="">Select Product</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group stock-indicator-group">
+              <label class="form-label">Available Stock</label>
+              <div id="stockIndicator" class="stock-indicator">
+                <span class="stock-value">-</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Quantity to Sell</label>
+              <input type="number" name="quantity" 
+                     class="form-control" 
+                     min="1" 
+                     placeholder="Enter quantity"
+                     required>
+              <div id="quantityError" class="error-message"></div>
+            </div>
+            <button type="submit" class="btn-primary" id="submitSale">
+              Record Sale
+            </button>
+          </div>
+        </form>
+
+      <div class="sales-history">
+        <h3 class="subsection-title">Recent Sales</h3>
+        ${renderRecentSales(salesData)}
       </div>
-    `;
-  }
+    </div>
+  `;
+}
   
-  async function setupSalesEvents() {
+async function setupSalesEvents() {
     try {
-        const [products, suppliers] = await Promise.all([
-            fetch('http://localhost:3000/api/products', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            }),
-            fetch('http://localhost:3000/api/suppliers', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            })
-        ].map(async p => {
-            const response = await p;
-            if (!response.ok) throw new Error('Failed to fetch data');
-            return response.json();
-        }));
-
-        if (!products || !suppliers) {
-            throw new Error('Failed to load selection data');
-        }
-
+      const suppliers = await fetch('http://localhost:3000/api/suppliers', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      }).then(r => r.json());
+  
+      const supplierSelect = document.getElementById('supplierSelect');
+      supplierSelect.innerHTML = `
+        <option value="">Select Supplier</option>
+        ${suppliers.map(s => `<option value="${s.SupplierID}">${s.Name}</option>`).join('')}
+      `;
+  
+      supplierSelect.addEventListener('change', async () => {
+        const supplierId = supplierSelect.value;
         const productSelect = document.getElementById('productSelect');
-        productSelect.innerHTML = products.map(p => 
-            `<option value="${p.ProductID}">${p.Name}</option>`
-        ).join('');
-
-        const supplierSelect = document.getElementById('supplierSelect');
-        supplierSelect.innerHTML = suppliers.map(s => 
-            `<option value="${s.SupplierID}">${s.Name}</option>`
-        ).join('');
-
-    } catch (error) {
-        console.error('Sales Setup Error:', error);
-        showError('Failed to load selection: Check your permissions');
-        if (error.message.includes('401')) {
-            logout();
+        
+        if (!supplierId) {
+          productSelect.innerHTML = '<option value="">Select Supplier</option>';
+          productSelect.disabled = true;
+          return;
         }
+  
+        const products = await fetch(`http://localhost:3000/api/suppliers/${supplierId}/products`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }).then(r => r.json());
+  
+        productSelect.innerHTML = `
+          <option value="">Select Product</option>
+          ${products.map(p => `<option value="${p.ProductID}">${p.Name}</option>`).join('')}
+        `;
+        productSelect.disabled = false;
+      });
+  
+      document.getElementById('productSelect').addEventListener('change', async function() {
+        const supplierId = supplierSelect.value;
+        const productId = this.value;
+        const stockIndicator = document.getElementById('stockIndicator');
+  
+        if (!supplierId || !productId) {
+          stockIndicator.textContent = '-';
+          return;
+        }
+  
+        const response = await fetch(
+            `http://localhost:3000/api/stock/${productId}/${supplierId}`, {
+              headers: { 
+                'Authorization': `Bearer ${localStorage.getItem('token')}` 
+              }
+            }
+          );
+  
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          stockIndicator.textContent = data.stock;
+      });
+  
+    } catch (error) {
+      showError('Failed to initialize sales form');
+      console.error(error);
     }
-
+  
     const salesForm = document.getElementById('salesForm');
     if (salesForm) {
-        salesForm.addEventListener('submit', handleSaleSubmit);
+      salesForm.addEventListener('submit', handleSaleSubmit);
+    }
+}
+  
+async function handleSaleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const stockIndicator = document.getElementById('stockIndicator');
+    
+    try {
+      const formData = new FormData(form);
+      const productId = formData.get('productId');
+      const supplierId = formData.get('supplierId');
+      const quantity = parseInt(formData.get('quantity'));
+  
+      if (!productId || !supplierId) {
+        throw new Error('Please select both supplier and product');
+      }
+  
+      const stockResponse = await fetch(
+        `http://localhost:3000/api/stock/${productId}/${supplierId}`, {
+          headers: { 
+            'Authorization': `Bearer ${localStorage.getItem('token')}` 
+          }
+        }
+      );
+      
+      if (!stockResponse.ok) {
+        throw new Error('Failed to verify stock');
+      }
+  
+      const { stock } = await stockResponse.json();
+      
+      if (stock < quantity) {
+        throw new Error(`Only ${stock} units available`);
+      }
+  
+      const saleResponse = await fetch('http://localhost:3000/api/sales', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          productId,
+          supplierId,
+          quantitySold: quantity
+        })
+      });
+  
+      if (!saleResponse.ok) {
+        throw new Error('Failed to record sale');
+      }
+  
+      await loadSectionContent('sales');
+      form.reset();
+      stockIndicator.textContent = '-';
+      showSuccess('Sale recorded successfully');
+  
+    } catch (error) {
+      showError(error.message);
+      console.error('Sale Error:', error);
     }
 }
   

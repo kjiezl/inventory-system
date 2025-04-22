@@ -16,6 +16,12 @@
     --input-bg: rgba(255, 255, 255, 0.05);
 }
 
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -213,7 +219,8 @@ button {
 }
 
 .btn-edit,
-.btn-delete {
+.btn-delete,
+.btn-stock {
   padding: 0.5rem;
   border: none;
   border-radius: 0.5rem;
@@ -231,6 +238,11 @@ button {
   color: #EF4444;
 }
 
+.btn-stock {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4f3db8;
+}
+
 .btn-edit:hover {
   filter: brightness(125%);
   background-color: #09580c;
@@ -239,6 +251,11 @@ button {
 .btn-delete:hover {
   filter: brightness(125%);
   background-color: #681111;
+}
+
+.btn-stock:hover {
+  filter: brightness(125%);
+  background-color: #260e80;
 }
 
 .dashboard-leave-active {
@@ -593,6 +610,89 @@ select {
 .btn-restock:hover {
   filter: brightness(125%);
   background-color: rgba(114, 137, 218, 0.2);
+}
+
+#stockIndicator {
+  padding: 0.5rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.1);
+  font-weight: bold;
+  min-width: 60px;
+  display: inline-block;
+  text-align: center;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #a0a0a0;
+}
+
+.sales-form-container {
+  background: var(--form-bg);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-light);
+  transition: border-color 0.3s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.stock-indicator-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.stock-indicator {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 0.8rem;
+  min-width: 120px;
+  text-align: center;
+}
+
+.stock-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.stock-unit {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.sales-history {
+  background: var(--form-bg);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.subsection-title {
+  margin-bottom: 1rem;
+  color: var(--text-light);
+  font-size: 1.1rem;
+}
+
+.error-message {
+  color: var(--error);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  min-height: 1.2rem;
 }
 
 @media (max-width: 768px) {
