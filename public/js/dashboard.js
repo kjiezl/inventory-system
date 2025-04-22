@@ -403,29 +403,53 @@ async function handleEditProduct(e) {
     }
 }
 
-function showEditProductModal(product) {
+async function showEditProductModal(product) {
     const modal = document.createElement('div');
     modal.className = 'modal';
+    const supplierDetails = await fetch(`http://localhost:3000/api/products/${product.ProductID}/stock-detail`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+  }).then(res => res.json());
+
+  let editSupplierCount = supplierDetails.length;
     modal.innerHTML = `
         <div class="modal-content">
             <h4>Edit Product</h4>
             <form id="editProductForm">
-                <div class="form-group">
-                    <label>Product Name</label>
-                    <input type="text" name="name" value="${product.Name}" required>
-                </div>
-                <div class="form-group">
-                    <label>Category</label>
-                    <input type="text" name="category" value="${product.Category}">
-                </div>
-                <div class="form-group">
-                    <label>Price</label>
-                    <input type="number" step="0.01" name="price" value="${product.Price}" required>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn-cancel">Cancel</button>
-                    <button type="submit" class="btn-primary">Save Changes</button>
-                </div>
+              <div class="form-group">
+                <label>Product Name</label>
+                <input type="text" name="name" value="${product.Name}" required>
+              </div>
+              <div class="form-group">
+                <label>Category</label>
+                <input type="text" name="category" value="${product.Category}">
+              </div>
+              <div class="form-group">
+                <label>Price</label>
+                <input type="number" step="0.01" name="price" value="${product.Price}" required>
+              </div>
+
+              <div id="edit-supplier-container">
+                ${supplierDetails.map((s, i) => `
+                  <div class="supplier-group" data-index="${i}">
+                    <select name="supplierId_${i}" required>
+                      ${window.suppliers.map(opt => `
+                        <option value="${opt.SupplierID}" ${opt.SupplierID === s.SupplierID ? 'selected' : ''}>
+                          ${opt.Name}
+                        </option>`).join('')}
+                    </select>
+                    <input type="number" name="quantity_${i}" value="${s.Quantity}" placeholder="Stock" required>
+                    <input type="number" name="supplierPrice_${i}" value="${s.Price}" placeholder="Price" required>
+                    <button type="button" class="remove-supplier">Remove</button>
+                  </div>
+                `).join('')}
+              </div>
+
+              <button type="button" id="addSupplierToEdit">Add Supplier</button>
+
+              <div class="modal-actions">
+                <button type="button" class="btn-cancel">Cancel</button>
+                <button type="submit" class="btn-primary">Save Changes</button>
+              </div>
             </form>
         </div>
     `;
@@ -454,13 +478,45 @@ function showEditProductModal(product) {
     `;
 
     modal.querySelector('.btn-cancel').addEventListener('click', () => modal.remove());
+
+    modal.querySelector('#addSupplierToEdit').addEventListener('click', () => {
+      const container = modal.querySelector('#edit-supplier-container');
+      const div = document.createElement('div');
+      div.classList.add('supplier-group');
+      div.dataset.index = editSupplierCount;
+
+      div.innerHTML = `
+        <select name="supplierId_${editSupplierCount}" required>
+          ${window.suppliers.map(opt => `<option value="${opt.SupplierID}">${opt.Name}</option>`).join('')}
+        </select>
+        <input type="number" name="quantity_${editSupplierCount}" placeholder="Stock" required>
+        <input type="number" name="supplierPrice_${editSupplierCount}" placeholder="Price" required>
+        <button type="button" class="remove-supplier">Remove</button>
+      `;
+
+      container.appendChild(div);
+      div.querySelector('.remove-supplier')?.addEventListener('click', () => div.remove());
+      editSupplierCount++;
+    });
+
     modal.querySelector('#editProductForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
+        const supplierGroups = modal.querySelectorAll('.supplier-group');
+        const suppliers = [];
+        supplierGroups.forEach(group => {
+          const index = group.dataset.index;
+          suppliers.push({
+            supplierId: parseInt(formData.get(`supplierId_${index}`)),
+            quantity: parseInt(formData.get(`quantity_${index}`)),
+            price: parseFloat(formData.get(`supplierPrice_${index}`))
+          });
+        });
         const updatedData = {
-            name: formData.get('name'),
-            category: formData.get('category'),
-            price: parseFloat(formData.get('price'))
+          name: formData.get('name'),
+          category: formData.get('category'),
+          price: parseFloat(formData.get('price')),
+          suppliers
         };
 
         try {
@@ -471,7 +527,7 @@ function showEditProductModal(product) {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
                 body: JSON.stringify(updatedData)
-            });
+            });          
 
             if (!response.ok) throw new Error('Failed to update product');
             

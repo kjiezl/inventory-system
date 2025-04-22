@@ -277,7 +277,7 @@ app.get('/api/products/:id', authenticateToken, async (req, res) => {
        LEFT JOIN Stock st ON st.SupplierID = s.SupplierID AND st.ProductID = ?
        WHERE sp.ProductID = ?
        GROUP BY s.SupplierID`,
-      [productId, productId]
+      [req.params.id, req.params.id]
     );
 
     res.setHeader('Content-Type', 'application/json');
@@ -318,19 +318,44 @@ app.get('/api/products/:id/stock-detail', authenticateToken, async (req, res) =>
 });
 
 app.put('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
-    try {
-      const { name, category, price } = req.body;
-      await pool.execute(
-        `UPDATE Products 
-        SET Name = ?, Category = ?, Price = ?
-        WHERE ProductID = ?`,
-        [name, category, price, req.params.id]
-      );
-      res.json({ success: true });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Server error' });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const productId = req.params.id;
+    const { name, category, price, suppliers } = req.body;
+
+    await connection.execute(
+      `UPDATE Products SET Name = ?, Category = ?, Price = ? WHERE ProductID = ?`,
+      [name, category, price, productId]
+    );
+
+    if (Array.isArray(suppliers)) {
+      for (const { supplierId, quantity, price: supplierPrice } of suppliers) {
+        await connection.execute(`
+          INSERT IGNORE INTO SupplierProducts (SupplierID, ProductID)
+          VALUES (?, ?)
+        `, [supplierId, productId]);
+
+        await connection.execute(`
+          DELETE FROM Stock WHERE ProductID = ? AND SupplierID = ?
+        `, [productId, supplierId]);
+
+        await connection.execute(`
+          INSERT INTO Stock (ProductID, SupplierID, QuantityAdded, Price)
+          VALUES (?, ?, ?, ?)
+        `, [productId, supplierId, quantity, supplierPrice]);
+      }
     }
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update product' });
+  } finally {
+    connection.release();
+  }
 });
 
 app.delete('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
