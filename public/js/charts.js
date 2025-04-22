@@ -28,12 +28,12 @@ const chartConfig = {
 function initializeCharts() {
   cleanupCharts();
 
-  if (document.getElementById('stockChart')) {
+  if (document.getElementById('stockLevelChart')) {
     initStockChart();
     startStockUpdates();
   }
 
-  if (document.getElementById('salesChart')) {
+  if (document.getElementById('salesTrendChart')) {
     initSalesTrendChart();
     startSalesUpdates();
   }
@@ -45,7 +45,7 @@ function initializeCharts() {
 }
 
 function cleanupCharts() {
-  [stockChart, salesChart].forEach(chart => {
+  [stockChart, salesChart, supplierChart].forEach(chart => {
     if (chart) chart.destroy();
   });
   updateIntervals.forEach(clearInterval);
@@ -53,7 +53,7 @@ function cleanupCharts() {
 }
 
 function initStockChart() {
-  const ctx = document.getElementById('stockChart').getContext('2d');
+  const ctx = document.getElementById('stockLevelChart').getContext('2d');
   
   stockChart = new Chart(ctx, {
     type: 'bar',
@@ -98,7 +98,7 @@ async function updateStockData() {
 }
 
 function initSalesTrendChart() {
-  const ctx = document.getElementById('salesChart').getContext('2d');
+  const ctx = document.getElementById('salesTrendChart').getContext('2d');
   
   salesChart = new Chart(ctx, {
     type: 'line',

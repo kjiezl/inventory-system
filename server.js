@@ -655,10 +655,9 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
           SELECT 
               p.ProductID,
               p.Name,
-              (COALESCE(SUM(st.QuantityAdded), 0) - COALESCE(SUM(sa.QuantitySold), 0)) AS currentStock
+              COALESCE(SUM(st.QuantityAdded), 0) AS currentStock
           FROM Products p
           LEFT JOIN Stock st ON p.ProductID = st.ProductID
-          LEFT JOIN Sales sa ON p.ProductID = sa.ProductID
           GROUP BY p.ProductID
       `);
 

@@ -160,60 +160,60 @@ function renderSuppliers(suppliers) {
 }
 
 function renderAnalytics(data) {
-    return `
-        <div class="analytics-dashboard">
-            <div class="analytics-header">
-                <h2>Analytics Dashboard</h2>
-                <div class="summary-cards">
-                    <div class="summary-card total-sales">
-                        <div class="icon">💰</div>
-                        <div class="content">
-                            <h3>Total Sales</h3>
-                            <p>₱${data?.totalRevenue || '0.00'}</p>
-                        </div>
-                    </div>
-                    <div class="summary-card avg-order">
-                        <div class="icon">📦</div>
-                        <div class="content">
-                            <h3>Avg. Order Value</h3>
-                            <p>₱${data?.avgOrderValue || '0.00'}</p>
-                        </div>
-                    </div>
-                    <div class="summary-card low-stock">
-                        <div class="icon">⚠️</div>
-                        <div class="content">
-                            <h3>Low Stock Items</h3>
-                            <p>${data?.lowStockCount || 0}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  return `
+      <div class="analytics-dashboard">
+          <div class="analytics-header">
+              <h2>Analytics Dashboard</h2>
+              <div class="summary-cards">
+                  <div class="summary-card total-sales">
+                      <div class="icon">💰</div>
+                      <div class="content">
+                          <h3>Total Sales</h3>
+                          <p>₱${data?.totalRevenue || '0.00'}</p>
+                      </div>
+                  </div>
+                  <div class="summary-card avg-order">
+                      <div class="icon">📦</div>
+                      <div class="content">
+                          <h3>Avg. Order Value</h3>
+                          <p>₱${data?.avgOrderValue || '0.00'}</p>
+                      </div>
+                  </div>
+                  <div class="summary-card low-stock">
+                      <div class="icon">⚠️</div>
+                      <div class="content">
+                          <h3>Low Stock Items</h3>
+                          <p>${data?.lowStockCount || 0}</p>
+                      </div>
+                  </div>
+              </div>
+          </div>
 
-            <div class="chart-grid">
-                <div class="chart-card">
-                    <h4>Sales Trends</h4>
-                    <canvas id="salesTrendChart"></canvas>
-                </div>
-                
-                <div class="chart-card">
-                    <h4>Stock Levels</h4>
-                    <canvas id="stockLevelChart"></canvas>
-                </div>
-                
-                <div class="chart-card">
-                    <h4>Supplier Contribution</h4>
-                    <canvas id="supplierChart"></canvas>
-                </div>
-            </div>
+          <div class="chart-grid">
+              <div class="chart-card">
+                  <h4>Sales Trends</h4>
+                  <canvas id="salesTrendChart"></canvas>
+              </div>
+              
+              <div class="chart-card">
+                  <h4>Stock Levels</h4>
+                  <canvas id="stockLevelChart"></canvas>
+              </div>
+              
+              <div class="chart-card">
+                  <h4>Supplier Contribution</h4>
+                  <canvas id="supplierChart"></canvas>
+              </div>
+          </div>
 
-            <div class="recent-activity">
-                <h4>Recent Sales</h4>
-                <div class="activity-list">
-                    ${renderRecentSales(data.recentSales)}
-                </div>
-            </div>
-        </div>
-    `;
+          <div class="recent-activity">
+              <h4>Recent Sales</h4>
+              <div class="activity-list">
+                  ${renderRecentSales(data.recentSales)}
+              </div>
+          </div>
+      </div>
+  `;
 }
 
 function renderRecentSales(sales) {
