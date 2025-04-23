@@ -202,9 +202,11 @@ app.get('/api/products', authenticateToken, async (req, res) => {
   try {
     const [products] = await pool.execute(`
       SELECT p.*, 
-        COALESCE(SUM(st.QuantityAdded), 0) AS currentStock
+        COALESCE(SUM(st.QuantityAdded), 0) AS currentStock,
+        u.Username AS CreatedByUsername
       FROM Products p
       LEFT JOIN Stock st ON p.ProductID = st.ProductID
+      LEFT JOIN Users u ON p.CreatedBy = u.UserID
       GROUP BY p.ProductID
     `);
     res.json(products);
@@ -214,7 +216,7 @@ app.get('/api/products', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/products', authenticateToken, checkRole(['Admin']), async (req, res) => {
+app.post('/api/products', authenticateToken, checkRole(['Admin', 'Manager']), async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -224,10 +226,17 @@ app.post('/api/products', authenticateToken, checkRole(['Admin']), async (req, r
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    const [productResult] = await connection.execute(
-      `INSERT INTO Products (Name, Category) VALUES (?, ?)`,
-      [name, category]
+    const [[userRole]] = await connection.execute(
+      `SELECT r.RoleName FROM Roles r JOIN Users u ON r.RoleID = u.RoleID WHERE u.UserID = ?`,
+      [req.user.userId]
     );
+    const roleName = userRole?.RoleName || 'Unknown';
+
+    const [productResult] = await connection.execute(
+      `INSERT INTO Products (Name, Category, CreatedBy, CreatorRole) VALUES (?, ?, ?, ?)`,
+      [name, category, req.user.userId, roleName]
+    );
+
     const productId = productResult.insertId;
 
     for (const { supplierId, quantity, price: supplierPrice } of suppliers) {
@@ -317,7 +326,7 @@ app.get('/api/products/:id/stock-detail', authenticateToken, async (req, res) =>
   }
 });
 
-app.put('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
+app.put('/api/products/:id', authenticateToken, checkRole(['Admin', 'Manager']), async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -358,7 +367,7 @@ app.put('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req
   }
 });
 
-app.delete('/api/products/:id', authenticateToken, checkRole(['Admin']), async (req, res) => {
+app.delete('/api/products/:id', authenticateToken, checkRole(['Admin', 'Manager']), async (req, res) => {
 	const connection = await pool.getConnection();
 	try {
 	  await connection.beginTransaction();
@@ -588,9 +597,11 @@ app.get('/api/sales', async (req, res) => {
 	try {
 	  const [sales] = await pool.execute(`
       SELECT s.SaleID, s.ProductID, p.Name AS ProductName, 
-          s.QuantitySold, s.TotalAmount, s.SaleDate 
+       s.QuantitySold, s.TotalAmount, s.SaleDate,
+       u.Username AS CreatedByUsername, s.CreatorRole
       FROM Sales s
       JOIN Products p ON s.ProductID = p.ProductID
+      LEFT JOIN Users u ON s.CreatedBy = u.UserID
       ORDER BY s.SaleDate DESC
 	  `);
 	  res.json(sales);
@@ -627,10 +638,16 @@ app.post('/api/sales', authenticateToken, checkRole(['Admin', 'Manager', 'Staff'
       [productId, supplierId, -quantitySold]
     );
 
+    const [[userRole]] = await connection.execute(
+      `SELECT r.RoleName FROM Roles r JOIN Users u ON r.RoleID = u.RoleID WHERE u.UserID = ?`,
+      [req.user.userId]
+    );
+    const roleName = userRole?.RoleName || 'Unknown';
+
     await connection.execute(
-      `INSERT INTO Sales (ProductID, QuantitySold, TotalAmount, SaleDate)
-       VALUES (?, ?, ?, NOW())`,
-      [productId, quantitySold, totalAmount]
+      `INSERT INTO Sales (ProductID, QuantitySold, TotalAmount, SaleDate, CreatedBy, CreatorRole)
+      VALUES (?, ?, ?, NOW(), ?, ?)`,
+      [productId, quantitySold, totalAmount, req.user.userId, roleName]
     );
 
     await connection.commit();

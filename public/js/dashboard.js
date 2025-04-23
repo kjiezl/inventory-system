@@ -22,7 +22,7 @@ function updateUIForRole(roleId) {
       },
       3: { // manager
         hidden: ['.user-management'],
-        disabled: ['.role-modification'],
+        disabled: [],
         sections: ['analytics', 'products', 'suppliers', 'sales']
       },
       4: { // guest
@@ -91,7 +91,7 @@ function renderSectionContent(section, data) {
 }
 
 function renderProducts(products) {
-  const isAdmin = localStorage.getItem('roleId') === '1';
+  const isAdmin = localStorage.getItem('roleId') === '1'|| localStorage.getItem('roleId') === '3';
   return `
       <div class="section-container">
           ${isAdmin ? renderAddProductForm() : ''}
@@ -105,6 +105,8 @@ function renderProducts(products) {
                           <th>Supplier</th>
                           <th>Stock</th>
                           <th>Price</th>
+                          <th>Added By</th>
+                          <th>Role</th>
                           ${isAdmin ? '<th>Actions</th>' : ''}
                       </tr>
                   </thead>
@@ -117,6 +119,8 @@ function renderProducts(products) {
                               <td id="supplier-name-${product.ProductID}"><em>Loading...</em></td>
                               <td id="supplier-stock-${product.ProductID}"><em>Loading...</em></td>
                               <td id="supplier-price-${product.ProductID}"><em>Loading...</em></td>
+                              <td>${product.CreatedByUsername || 'Unknown'}</td>
+                              <td>${product.CreatorRole || 'N/A'}</td>
                               ${isAdmin ? `
                                   <td class="actions">
                                       <button class="btn-edit" data-id="${product.ProductID}">✏️</button>
@@ -199,6 +203,8 @@ function renderRecentSales(sales) {
                     <th>Product</th>
                     <th>Qty</th>
                     <th>Total</th>
+                    <th>Sold By</th>
+                    <th>Role</th>
                 </tr>
             </thead>
             <tbody>
@@ -208,6 +214,8 @@ function renderRecentSales(sales) {
                         <td>${sale.ProductName}</td>
                         <td>${sale.QuantitySold}</td>
                         <td>₱${sale.TotalAmount}</td>
+                        <td>${sale.CreatedByUsername || 'Unknown'}</td>
+                        <td>${sale.CreatorRole || 'N/A'}</td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -946,7 +954,7 @@ function logout() {
 }
 
 function renderSuppliers(suppliers) {
-    const isAdmin = localStorage.getItem('roleId') === '1';
+    const isAdmin = localStorage.getItem('roleId') === '1' || localStorage.getItem('roleId') === '3';
     return `
         <div class="section-container">
             ${isAdmin ? renderAddSupplierForm() : ''}
