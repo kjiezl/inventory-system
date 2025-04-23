@@ -209,6 +209,21 @@ app.get('/api/products', authenticateToken, async (req, res) => {
       LEFT JOIN Users u ON p.CreatedBy = u.UserID
       GROUP BY p.ProductID
     `);
+
+    // for (let product of products) {
+    //   const [suppliers] = await pool.execute(`
+    //     SELECT s.Name AS SupplierName, 
+    //            COALESCE(SUM(st.QuantityAdded), 0) AS Quantity,
+    //            MAX(st.Price) AS Price
+    //     FROM Suppliers s
+    //     JOIN SupplierProducts sp ON s.SupplierID = sp.SupplierID
+    //     LEFT JOIN Stock st ON st.ProductID = ? AND st.SupplierID = s.SupplierID
+    //     WHERE sp.ProductID = ?
+    //     GROUP BY s.SupplierID
+    //   `, [product.ProductID, product.ProductID]);
+    
+    //   product.Suppliers = suppliers;
+    // }
     res.json(products);
   } catch (error) {
     console.error(error);

@@ -110,6 +110,33 @@ function renderProducts(products) {
                           ${isAdmin ? '<th>Actions</th>' : ''}
                       </tr>
                   </thead>
+                  <!-- <tbody>
+                    ${products.map(product => {
+                      const suppliers = product.Suppliers || [];
+                      return suppliers.map((supplier, index) => `
+                        <tr>
+                          ${index === 0 ? `
+                            <td rowspan="${suppliers.length}">${product.ProductID}</td>
+                            <td rowspan="${suppliers.length}">${product.Name}</td>
+                            <td rowspan="${suppliers.length}">${product.Category}</td>
+                          ` : ''}
+                          <td>${supplier.SupplierName}</td>
+                          <td>${supplier.Quantity}</td>
+                          <td>₱${supplier.Price}</td>
+                          ${index === 0 ? `
+                            <td rowspan="${suppliers.length}">${product.CreatedByUsername || 'Unknown'}</td>
+                            <td rowspan="${suppliers.length}">${product.CreatorRole || 'N/A'}</td>
+                          ` : ''}
+                          ${index === 0 && isAdmin ? `
+                            <td rowspan="${suppliers.length}" class="actions">
+                              <button class="btn-edit" data-id="${product.ProductID}">✏️</button>
+                              ${localStorage.getItem('roleId') === '1' ? `<button class="btn-delete" data-id="${product.ProductID}">🗑️</button>` : ''}
+                            </td>
+                          ` : ''}
+                        </tr>
+                      `).join('');
+                    }).join('')}
+                  </tbody> -->
                   <tbody>
                       ${products.map(product => `
                           <tr>
@@ -184,12 +211,12 @@ function renderAnalytics(data) {
               </div>
           </div>
 
-          <div class="recent-activity">
+          <!-- <div class="recent-activity">
               <h4>Recent Sales</h4>
               <div class="activity-list">
                   ${renderRecentSales(data.recentSales)}
               </div>
-          </div>
+          </div> -->
       </div>
   `;
 }
